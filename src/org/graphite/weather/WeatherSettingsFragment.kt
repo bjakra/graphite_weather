@@ -3,7 +3,11 @@ package org.graphite.weather
 import android.Manifest
 import android.app.AlertDialog
 import android.content.pm.PackageManager
+import android.location.LocationListener
 import android.location.LocationManager
+import android.location.LocationRequest
+import android.os.Handler
+import android.os.Looper
 import android.os.Bundle
 import android.text.format.DateUtils
 import android.widget.EditText
@@ -14,8 +18,6 @@ import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreferenceCompat
 import java.io.IOException
 import java.util.concurrent.Executors
-import java.util.function.Consumer
-import kotlin.math.roundToInt
 
 class WeatherSettingsFragment : PreferenceFragmentCompat() {
     private val executor = Executors.newSingleThreadExecutor()
@@ -24,6 +26,8 @@ class WeatherSettingsFragment : PreferenceFragmentCompat() {
     private lateinit var deviceUpdate: Preference
     private lateinit var source: ListPreference
     private lateinit var status: Preference
+    private val handler = Handler(Looper.getMainLooper())
+    private var stopLocating: () -> Unit = {}
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         val context = preferenceManager.context
@@ -173,7 +177,7 @@ class WeatherSettingsFragment : PreferenceFragmentCompat() {
             weather == null -> getString(R.string.status_waiting)
             else -> getString(
                 R.string.status_updated,
-                weather.celsius.roundToInt().toString(),
+                store.displayTemperature(weather).toString(),
                 DateUtils.getRelativeTimeSpanString(store.fetchedAt()),
             )
         }
@@ -242,6 +246,11 @@ class WeatherSettingsFragment : PreferenceFragmentCompat() {
             .show()
     }
 
+    override fun onDestroyView() {
+        stopLocating()
+        super.onDestroyView()
+    }
+
     private fun requestLocationPermission() {
         val permission = Manifest.permission.ACCESS_COARSE_LOCATION
         if (requireContext().checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
@@ -278,24 +287,38 @@ class WeatherSettingsFragment : PreferenceFragmentCompat() {
             return
         }
         val manager = context.getSystemService(LocationManager::class.java)
-        val provider = listOf(
-            LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER,
-        ).firstOrNull { manager.isProviderEnabled(it) }
+        // With coarse permission fused only asks the network provider, which GrapheneOS leaves off by default
+        val provider = when {
+            manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.FUSED_PROVIDER
+            manager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+            else -> null
+        }
         if (provider == null) {
             toast(R.string.device_failed)
             return
         }
-        manager.getCurrentLocation(provider, null, context.mainExecutor, Consumer { fix ->
-            if (!isAdded) return@Consumer
-            if (fix == null) {
-                toast(R.string.device_failed)
-            } else {
-                setLocation(
-                    fix.latitude, fix.longitude,
-                    "%.2f, %.2f".format(WeatherStore.roundCoordinate(fix.latitude), WeatherStore.roundCoordinate(fix.longitude)),
-                )
-            }
-        })
+        stopLocating()
+        toast(R.string.device_locating)
+        val listener = LocationListener { fix ->
+            stopLocating()
+            setLocation(
+                fix.latitude, fix.longitude,
+                "%.2f, %.2f".format(WeatherStore.roundCoordinate(fix.latitude), WeatherStore.roundCoordinate(fix.longitude)),
+            )
+        }
+        val timeout = Runnable {
+            stopLocating()
+            toast(R.string.device_failed)
+        }
+        stopLocating = {
+            manager.removeUpdates(listener)
+            handler.removeCallbacks(timeout)
+            stopLocating = {}
+        }
+        manager.requestLocationUpdates(
+            provider, LocationRequest.Builder(0).setMaxUpdates(1).build(), context.mainExecutor, listener,
+        )
+        handler.postDelayed(timeout, LOCATION_TIMEOUT_MS)
     }
 
     private fun toast(message: Int) {
@@ -303,6 +326,7 @@ class WeatherSettingsFragment : PreferenceFragmentCompat() {
     }
 
     companion object {
+        private const val LOCATION_TIMEOUT_MS = 90_000L
         private const val REQUEST_LOCATION = 1
         private val COORDINATES = Regex("""(-?\d{1,2}(?:\.\d+)?)\s*[, ]\s*(-?\d{1,3}(?:\.\d+)?)""")
     }

@@ -16,6 +16,7 @@
     <string name="location_failed">Couldn\'t reach the location search</string>
     <string name="device_update">Update location now</string>
     <string name="device_update_summary">Reads your approximate location once, only when you tap this.</string>
+    <string name="device_locating">Getting your location. This can take a minute.</string>
     <string name="device_failed">Couldn\'t get your location</string>
     <string name="device_denied">Location permission wasn\'t granted</string>
     <string name="device_confirm_title">Use device location?</string>

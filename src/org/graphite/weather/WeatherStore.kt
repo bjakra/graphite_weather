@@ -5,6 +5,7 @@ import android.icu.util.LocaleData
 import android.icu.util.ULocale
 import kotlin.math.max
 import kotlin.math.round
+import kotlin.math.roundToInt
 
 /** Settings and the last fetched weather, in credential encrypted storage and out of backups. */
 class WeatherStore(context: Context) {
@@ -73,6 +74,9 @@ class WeatherStore(context: Context) {
             prefs.getBoolean(KEY_DAY, true),
         )
     }
+
+    fun displayTemperature(weather: Weather): Int =
+        (if (useCelsius()) weather.celsius else weather.celsius * 9 / 5 + 32).roundToInt()
 
     fun useCelsius(): Boolean = when (units) {
         UNITS_CELSIUS -> true
