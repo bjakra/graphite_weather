@@ -43,6 +43,7 @@ class WeatherSettingsFragment : PreferenceFragmentCompat() {
             }
         })
         source = ListPreference(context).apply {
+            key = "source"
             title = getString(R.string.source)
             dialogTitle = title
             isPersistent = false
@@ -82,6 +83,7 @@ class WeatherSettingsFragment : PreferenceFragmentCompat() {
         }
         screen.addPreference(deviceUpdate)
         screen.addPreference(ListPreference(context).apply {
+            key = "units"
             title = getString(R.string.units)
             dialogTitle = title
             isPersistent = false
@@ -99,6 +101,7 @@ class WeatherSettingsFragment : PreferenceFragmentCompat() {
         })
         val hours = listOf(1, 2, 4, 6)
         screen.addPreference(ListPreference(context).apply {
+            key = "interval"
             title = getString(R.string.interval)
             dialogTitle = title
             isPersistent = false
@@ -115,6 +118,7 @@ class WeatherSettingsFragment : PreferenceFragmentCompat() {
             }
         })
         screen.addPreference(ListPreference(context).apply {
+            key = "provider"
             title = getString(R.string.provider)
             dialogTitle = title
             isPersistent = false
